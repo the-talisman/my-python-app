@@ -1,0 +1,21 @@
+### Python Streamlit app only
+# Ignore everything by default
+*
+!*.py
+!requirements.txt
+!.gitignore
+!.streamlit/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db

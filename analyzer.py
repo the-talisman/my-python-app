@@ -214,26 +214,42 @@ def _tokenize(text: str) -> List[str]:
 	return [t for t in tokens if t.isalpha() and t not in sw]
 
 
+def _has_word_boundary_match(text: str, keyword: str) -> bool:
+	"""Check if keyword exists with word boundaries to avoid false matches."""
+	import re
+	# Escape special regex characters in keyword
+	escaped = re.escape(keyword)
+	# Use word boundaries \b to match whole words/phrases
+	# Allow for common separators like -, /, +
+	pattern = r'\b' + escaped.replace(r'\ ', r'[\s\-/+]*') + r'\b'
+	return bool(re.search(pattern, text, re.IGNORECASE))
+
+
 def extract_skills(text: str) -> List[str]:
-	"""Extract likely skills from resume text using keyword matching."""
+	"""Extract likely skills from resume text using precise keyword matching with word boundaries."""
+	import re
+	
 	text_lower = (text or "").lower()
+	# Normalize text: replace common separators with spaces for better matching
+	normalized_text = re.sub(r'[/\-+]', ' ', text_lower)
 	tokens = set(_tokenize(text))
 	detected: List[str] = []
 	
 	for field, kws in skill_keywords.items():
 		for kw in kws:
 			kw_lower = kw.lower()
-			# Check if the keyword appears as a substring in the text
-			# This catches variations like "Python programming", "Python 3", etc.
-			if kw_lower in text_lower:
+			
+			# Use word boundary matching to avoid false positives
+			# e.g., "rust" won't match "trust", "go" won't match "going"
+			if _has_word_boundary_match(normalized_text, kw_lower):
 				detected.append(kw)
 			else:
-				# Fallback: check if all tokens of multi-word phrase exist
+				# Additional check for multi-word phrases where words appear separately
 				parts = kw_lower.split()
-				if len(parts) > 1 and all(p in tokens for p in parts):
-					detected.append(kw)
-				elif len(parts) == 1 and kw_lower in tokens:
-					detected.append(kw)
+				if len(parts) > 1:
+					# Check if all parts exist as separate tokens
+					if all(p in tokens for p in parts):
+						detected.append(kw)
 	
 	# de-duplicate while preserving order
 	seen = set()
@@ -246,8 +262,11 @@ def extract_skills(text: str) -> List[str]:
 
 
 def detect_job_field(text: str) -> str:
-	"""Predict the most likely job field based on keyword counts."""
+	"""Predict the most likely job field based on keyword counts with precise matching."""
+	import re
+	
 	text_lower = (text or "").lower()
+	normalized_text = re.sub(r'[/\-+]', ' ', text_lower)
 	tokens = set(_tokenize(text))
 	best_field = "General"
 	best_score = 0
@@ -256,15 +275,14 @@ def detect_job_field(text: str) -> str:
 		score = 0
 		for kw in kws:
 			kw_lower = kw.lower()
-			# Check substring match first (more lenient)
-			if kw_lower in text_lower:
+			
+			# Use word boundary matching for accurate detection
+			if _has_word_boundary_match(normalized_text, kw_lower):
 				score += 1
 			else:
-				# Fallback to token-based matching
+				# Fallback for multi-word phrases
 				parts = kw_lower.split()
 				if len(parts) > 1 and all(p in tokens for p in parts):
-					score += 1
-				elif len(parts) == 1 and kw_lower in tokens:
 					score += 1
 		if score > best_score:
 			best_score = score

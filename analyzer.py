@@ -216,18 +216,25 @@ def _tokenize(text: str) -> List[str]:
 
 def extract_skills(text: str) -> List[str]:
 	"""Extract likely skills from resume text using keyword matching."""
+	text_lower = (text or "").lower()
 	tokens = set(_tokenize(text))
 	detected: List[str] = []
+	
 	for field, kws in skill_keywords.items():
 		for kw in kws:
-			# multi-word phrases: all words must appear
-			parts = kw.lower().split()
-			if len(parts) > 1:
-				if all(p in tokens for p in parts):
-					detected.append(kw)
+			kw_lower = kw.lower()
+			# Check if the keyword appears as a substring in the text
+			# This catches variations like "Python programming", "Python 3", etc.
+			if kw_lower in text_lower:
+				detected.append(kw)
 			else:
-				if kw.lower() in tokens:
+				# Fallback: check if all tokens of multi-word phrase exist
+				parts = kw_lower.split()
+				if len(parts) > 1 and all(p in tokens for p in parts):
 					detected.append(kw)
+				elif len(parts) == 1 and kw_lower in tokens:
+					detected.append(kw)
+	
 	# de-duplicate while preserving order
 	seen = set()
 	uniq: List[str] = []
@@ -240,18 +247,24 @@ def extract_skills(text: str) -> List[str]:
 
 def detect_job_field(text: str) -> str:
 	"""Predict the most likely job field based on keyword counts."""
+	text_lower = (text or "").lower()
 	tokens = set(_tokenize(text))
 	best_field = "General"
 	best_score = 0
+	
 	for field, kws in skill_keywords.items():
 		score = 0
 		for kw in kws:
-			parts = kw.lower().split()
-			if len(parts) > 1:
-				if all(p in tokens for p in parts):
-					score += 1
+			kw_lower = kw.lower()
+			# Check substring match first (more lenient)
+			if kw_lower in text_lower:
+				score += 1
 			else:
-				if kw.lower() in tokens:
+				# Fallback to token-based matching
+				parts = kw_lower.split()
+				if len(parts) > 1 and all(p in tokens for p in parts):
+					score += 1
+				elif len(parts) == 1 and kw_lower in tokens:
 					score += 1
 		if score > best_score:
 			best_score = score

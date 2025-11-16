@@ -2,3 +2,4 @@ streamlit
 pymupdf
 nltk
 matplotlib
+numpy

@@ -2,6 +2,7 @@ import tempfile
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
+import numpy as np
 import streamlit as st
 import requests
 from datetime import datetime
@@ -25,7 +26,7 @@ except Exception:
 
 
 def build_skill_chart(detected_skills: List[str]) -> Optional[plt.Figure]:
-	"""Build a horizontal bar chart summarizing matched skills per field."""
+	"""Build a modern horizontal bar chart summarizing matched skills per field."""
 	field_counts = {
 		field: sum(1 for kw in keywords if kw in detected_skills)
 		for field, keywords in skill_keywords.items()
@@ -34,11 +35,42 @@ def build_skill_chart(detected_skills: List[str]) -> Optional[plt.Figure]:
 	if not field_counts:
 		return None
 
-	fig, ax = plt.subplots(figsize=(8, 4))
-	ax.barh(list(field_counts.keys()), list(field_counts.values()))
-	ax.set_xlabel("Number of Matched Skills")
-	ax.set_ylabel("Job Fields")
-	ax.set_title("Resume Skill Match Overview")
+	# Sort by count descending for better visualization
+	sorted_fields = sorted(field_counts.items(), key=lambda x: x[1], reverse=True)
+	fields = [f[0] for f in sorted_fields]
+	counts = [f[1] for f in sorted_fields]
+
+	# Modern color gradient from deep blue to cyan
+	colors = plt.cm.viridis(np.linspace(0.3, 0.9, len(fields)))
+
+	fig, ax = plt.subplots(figsize=(10, max(5, len(fields) * 0.5)))
+	
+	# Create horizontal bars with rounded edges
+	bars = ax.barh(fields, counts, color=colors, edgecolor='white', linewidth=2, height=0.7)
+	
+	# Add value labels at the end of each bar
+	for i, (bar, count) in enumerate(zip(bars, counts)):
+		width = bar.get_width()
+		ax.text(width + 0.1, bar.get_y() + bar.get_height()/2, 
+				f'{int(count)}',
+				ha='left', va='center', fontweight='bold', fontsize=10, color='#0a66c2')
+	
+	# Styling
+	ax.set_xlabel("Number of Matched Skills", fontsize=12, fontweight='bold', color='#333')
+	ax.set_ylabel("Job Fields", fontsize=12, fontweight='bold', color='#333')
+	ax.set_title("📊 Resume Skill Distribution", fontsize=14, fontweight='bold', color='#0a66c2', pad=20)
+	
+	# Remove top and right spines for cleaner look
+	ax.spines['top'].set_visible(False)
+	ax.spines['right'].set_visible(False)
+	ax.spines['left'].set_color('#ddd')
+	ax.spines['bottom'].set_color('#ddd')
+	
+	# Grid for better readability
+	ax.grid(axis='x', alpha=0.3, linestyle='--', linewidth=0.7)
+	ax.set_axisbelow(True)
+	
+	# Adjust layout
 	plt.tight_layout()
 	return fig
 
@@ -142,9 +174,8 @@ def semantic_score_jobs(jobs: List[dict], resume_text: str) -> List[dict]:
 		job_embs = S_EMBED_MODEL.encode(job_texts)
 
 	def normalize(v):
-		import numpy as _np
-		v = _np.array(v, dtype=float)
-		norm = _np.linalg.norm(v)
+		v = np.array(v, dtype=float)
+		norm = np.linalg.norm(v)
 		return v / (norm + 1e-9)
 
 	r = normalize(resume_emb)

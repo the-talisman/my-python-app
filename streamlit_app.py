@@ -82,16 +82,45 @@ def score_jobs_against_skills(jobs: List[dict], skills: List[str]) -> List[dict]
 	"""Score each job by counting occurrences of detected skills in title/description/company."""
 	skill_set = set(skills)
 	scored = []
+	
+	# Determine which field the skills belong to
+	field_counts = {}
+	for skill in skills:
+		for field, keywords in skill_keywords.items():
+			if skill in keywords:
+				field_counts[field] = field_counts.get(field, 0) + 1
+	
+	# Find dominant field
+	dominant_field = max(field_counts.items(), key=lambda x: x[1])[0] if field_counts else None
+	dominant_field_keywords = set(skill_keywords.get(dominant_field, [])) if dominant_field else set()
+	
 	for j in jobs:
 		text = ' '.join([j.get('title',''), j.get('company',''), j.get('description',''), j.get('location','')]).lower()
-		score = 0
-		for sk in skill_set:
-			if sk in text:
-				score += 1
-		if score > 0:
+		
+		# Count direct skill matches
+		direct_matches = sum(1 for sk in skill_set if sk in text)
+		
+		# Count field-relevant keywords in job posting
+		field_matches = sum(1 for kw in dominant_field_keywords if kw in text) if dominant_field_keywords else 0
+		
+		# Calculate score: 60% from direct matches, 40% from field relevance
+		if len(skill_set) > 0:
+			direct_score = (direct_matches / len(skill_set)) * 60
+		else:
+			direct_score = 0
+			
+		if dominant_field_keywords:
+			field_score = min(40, (field_matches / len(dominant_field_keywords)) * 100)
+		else:
+			field_score = direct_matches * 5
+		
+		total_score = round(direct_score + field_score, 1)
+		
+		if total_score > 0:
 			j2 = dict(j)
-			j2['score'] = score
+			j2['score'] = total_score
 			scored.append(j2)
+	
 	scored.sort(key=lambda x: x['score'], reverse=True)
 	return scored
 
@@ -188,7 +217,7 @@ def main() -> None:
 	if skills and jobs:
 		matches = semantic_score_jobs(jobs, text) if S_EMBED_MODEL is not None else score_jobs_against_skills(jobs, skills)
 		if matches:
-			min_score = 30 if S_EMBED_MODEL is not None else 1
+			min_score = 30 if S_EMBED_MODEL is not None else 20
 			relevant_matches = [m for m in matches if m['score'] >= min_score]
 			if relevant_matches:
 				st.write(f"Top {min(5, len(relevant_matches))} matches:")
